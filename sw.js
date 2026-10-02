@@ -1,8 +1,7 @@
-// เปลี่ยนชื่อเวอร์ชันเป็น v5 เพื่อสั่งให้แอปเคลียร์ของเก่าทิ้ง
-const CACHE_NAME = 'crtoabingo-v3';
+const CACHE_NAME = 'crtoabingo-v4';
 
-// ตัด './' ออก เหลือแค่ไฟล์ที่มีจริง
 const ASSETS = [
+  './',
   './index.html',
   './styles.css',
   './index.js',
@@ -13,41 +12,47 @@ const ASSETS = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return Promise.allSettled(
-        ASSETS.map(url => cache.add(url))
-      );
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
-    }).then(() => self.clients.claim())
+    caches.keys().then(keys =>
+      Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', event => {
-  // รับเฉพาะ HTTP/HTTPS GET request เท่านั้น
-  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+  const request = event.request;
+
+  if (request.method !== 'GET' ||
+      !request.url.startsWith('http')) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() =>
+        caches.match('./index.html')
+      )
+    );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then(networkResponse => {
-        return networkResponse;
-      }).catch(() => {
-        // ออฟไลน์หรือโหลดไม่สำเร็จ ให้ส่ง index.html กลับไป
-        return caches.match('./index.html');
-      });
+    caches.match(request).then(cached => {
+      if (cached) return cached;
+
+      return fetch(request);
     })
   );
 });
+

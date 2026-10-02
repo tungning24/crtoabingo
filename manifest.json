@@ -1,18 +1,19 @@
 {
   "name": "CRToA Bingo",
   "short_name": "CRToABingo",
-  "start_url": ".",
+  "start_url": "/crtoabingo/",
+  "scope": "/crtoabingo/",
   "display": "standalone",
   "background_color": "#de2727",
   "theme_color": "#de2727",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/crtoabingo/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "icon-512.png",
+      "src": "/crtoabingo/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
