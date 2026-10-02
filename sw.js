@@ -1,4 +1,4 @@
-const CACHE_NAME = 'walls-v1';
+const CACHE_NAME = 'crtoabingo-v1';
 
 const FILES = [
   './',
