@@ -56,7 +56,6 @@ var Field = /** @class */ (function () {
         configurable: true
     });
     Object.defineProperty(Field.prototype, "hasRedundantCells", {
-        // a cell is redundant if it does not complete any line
         get: function () {
             outer: for (var _i = 0, _a = this.cells; _i < _a.length; _i++) {
                 var cell = _a[_i];
@@ -187,7 +186,6 @@ function getRandomFreeCell(cells) {
     }
     return freeCells[Math.floor(Math.random() * freeCells.length)];
 }
-// returns unused cell which has the most complete lines
 function getMostCompleteCell(cells) {
     var bestCell;
     var bestCounts = [];
@@ -209,7 +207,6 @@ function getMostCompleteCell(cells) {
     }
     return bestCell;
 }
-// return unused cell that is part of most finishable four-line patterns, falling back to three and two lines
 function getHottestCell(field, remainingMoves) {
     var heatmap = getHeatMapOfBestPatterns(field, remainingMoves);
     lastUsedHeatmap = heatmap;
@@ -340,41 +337,13 @@ var threeLinePatterns12And13Moves = threeLinePatterns12Moves.concat(threeLinePat
 var allThreeLinePatterns = threeLinePatterns12And13Moves.concat(threeLinePatterns15Moves);
 var allTwoLinePatterns = (_a = []).concat.apply(_a, Object.values(createPatterns(2)));
 var patternLibs = [
-    {
-        lines: 4,
-        patterns: allFourLinePatterns,
-        remainingMovesOffset: 2
-    },
-    {
-        lines: 4,
-        patterns: allFourLinePatterns,
-        remainingMovesOffset: 1
-    },
-    {
-        lines: 4,
-        patterns: allFourLinePatterns,
-        remainingMovesOffset: 0
-    },
-    {
-        lines: 3,
-        patterns: allThreeLinePatterns,
-        remainingMovesOffset: 1
-    },
-    {
-        lines: 3,
-        patterns: allThreeLinePatterns,
-        remainingMovesOffset: 0
-    },
-    {
-        lines: 2,
-        patterns: allTwoLinePatterns,
-        remainingMovesOffset: 1
-    },
-    {
-        lines: 2,
-        patterns: allTwoLinePatterns,
-        remainingMovesOffset: 0
-    },
+    { lines: 4, patterns: allFourLinePatterns, remainingMovesOffset: 2 },
+    { lines: 4, patterns: allFourLinePatterns, remainingMovesOffset: 1 },
+    { lines: 4, patterns: allFourLinePatterns, remainingMovesOffset: 0 },
+    { lines: 3, patterns: allThreeLinePatterns, remainingMovesOffset: 1 },
+    { lines: 3, patterns: allThreeLinePatterns, remainingMovesOffset: 0 },
+    { lines: 2, patterns: allTwoLinePatterns, remainingMovesOffset: 1 },
+    { lines: 2, patterns: allTwoLinePatterns, remainingMovesOffset: 0 },
 ];
 var strategies = [
     {
@@ -387,173 +356,9 @@ var strategies = [
         threeLineWins: 0,
         twoLineWins: 0,
         oneLineWins: 0
-        // chances: 26.046919839359617, 69.16415871575377, 4.783306288799452, 0.005615156087161295
-        /*
-            actual data:
-            24 games    (100.0%)
-            4 lines: 10 ( 41.7%)
-            3 lines: 13 ( 54.2%)
-            2 lines: 1  (  4.2%)
-
-            14 games    (100.0%)
-            4 lines: 5  ( 35.7%)
-            3 lines: 9  ( 64.3%)
-        */
     },
 ];
-function randomBenchmark() {
-    var field = new Field();
-    console.time();
-    var _loop_2 = function (i) {
-        for (var _i = 0, strategies_1 = strategies; _i < strategies_1.length; _i++) {
-            var strat = strategies_1[_i];
-            for (var move = 1; move <= 16; move += 2) {
-                strat.getNextMove(field, move, 16 - move + 1).use();
-                getRandomFreeCell(field.cells).use();
-            }
-            if (field.linesCompleted >= 4) {
-                strat.fourLineWins++;
-            }
-            else if (field.linesCompleted === 3) {
-                strat.threeLineWins++;
-            }
-            else if (field.linesCompleted === 2) {
-                strat.twoLineWins++;
-            }
-            else if (field.linesCompleted === 1) {
-                strat.oneLineWins++;
-            }
-            else {
-                console.log('Worse than 1.');
-                field.print();
-            }
-            field.reset();
-        }
-        if (i % 10000 === 0) {
-            console.log(strategies.map(function (strat) { return strat.name + ': ' + strat.fourLineWins / i * 100 + ', ' + strat.threeLineWins / i * 100 + ', ' + strat.twoLineWins / i * 100 + ', ' + strat.oneLineWins / i * 100; }).join('\n'));
-            console.timeLog();
-        }
-    };
-    // the accuracy after 1M is about +/-0.04 percent point, after 10M +/- 0.01 percent point and after 100M +/- 0.005
-    for (var i = 1; i <= 10000000; i++) {
-        _loop_2(i);
-    }
-    console.timeEnd();
-}
-function fullBenchmark() {
-    var workerpool = require('workerpool');
-    if (!workerpool.isMainThread) {
-        workerpool.worker({ benchmarkWorker: benchmarkWorker });
-        return;
-    }
-    var pool = workerpool.pool(__filename, { minWorkers: 'max', maxWorkers: workerpool.cpus });
-    var strategyPromises = [];
-    var _loop_3 = function (strategyIndex) {
-        var promises = [];
-        var strategy = strategies[strategyIndex];
-        var partialResults = [];
-        var totalRoundsTarget = 5109350400;
-        var startTime = Date.now();
-        var _loop_4 = function (i) {
-            var partitionIndex = i;
-            var promise_1 = pool.exec('benchmarkWorker', [strategyIndex, partitionIndex], {
-                on: function (payload) {
-                    partialResults[partitionIndex] = payload;
-                    var result = accumulatePartialResults(partialResults);
-                    if (result.totalRounds % 1000000 === 0) {
-                        // rounds per ms
-                        var speed = result.totalRounds / (Date.now() - startTime);
-                        var eta = (totalRoundsTarget - result.totalRounds) / speed;
-                        var hours = Math.floor(eta / 3600000);
-                        var minutes = Math.floor((eta - hours * 3600000) / 60000);
-                        console.log("".concat(hours, " h ").concat(minutes, " m (").concat(speed, " rounds/ms)"));
-                    }
-                }
-            });
-            promises.push(promise_1);
-        };
-        for (var i = 0; i < 25; i++) {
-            _loop_4(i);
-        }
-        var promise = Promise.all(promises).then(function (results) {
-            var result = accumulatePartialResults(results);
-            Object.assign(strategy, result);
-        });
-        strategyPromises.push(promise);
-    };
-    for (var strategyIndex = 0; strategyIndex < strategies.length; strategyIndex++) {
-        _loop_3(strategyIndex);
-    }
-    Promise.all(strategyPromises).then(function () {
-        console.log(strategies.map(function (s) { return s.name + ': ' + s.fourLineWins / s.totalRounds * 100 + ', ' + s.threeLineWins / s.totalRounds * 100 + ', ' + s.twoLineWins / s.totalRounds * 100 + ', ' + s.oneLineWins / s.totalRounds * 100; }).join('\n'));
-    });
-}
-function accumulatePartialResults(partialResults) {
-    return partialResults.reduce(function (result, partialResult) {
-        var _a, _b, _c, _d, _e;
-        result.totalRounds = ((_a = result.totalRounds) !== null && _a !== void 0 ? _a : 0) + partialResult.totalRounds;
-        result.fourLineWins = ((_b = result.fourLineWins) !== null && _b !== void 0 ? _b : 0) + partialResult.fourLineWins;
-        result.threeLineWins = ((_c = result.threeLineWins) !== null && _c !== void 0 ? _c : 0) + partialResult.threeLineWins;
-        result.twoLineWins = ((_d = result.twoLineWins) !== null && _d !== void 0 ? _d : 0) + partialResult.twoLineWins;
-        result.oneLineWins = ((_e = result.oneLineWins) !== null && _e !== void 0 ? _e : 0) + partialResult.oneLineWins;
-        return result;
-    }, {});
-}
-function benchmarkWorker(strategyIndex, partitionIndex, maxMoves, field, move, result) {
-    if (maxMoves === void 0) { maxMoves = 16; }
-    if (field === void 0) { field = new Field(); }
-    if (move === void 0) { move = 1; }
-    var workerpool = require('workerpool');
-    if (move === 1) {
-        result = {
-            totalRounds: 0,
-            fourLineWins: 0,
-            threeLineWins: 0,
-            twoLineWins: 0,
-            oneLineWins: 0
-        };
-    }
-    var nextCell = strategies[strategyIndex].getNextMove(field, move, maxMoves - move + 1);
-    nextCell.use();
-    move++;
-    for (var i = (move === 2 ? partitionIndex : 0); i < (move === 2 ? partitionIndex + 1 : field.cells.length); i++) {
-        var cell = field.cells[i];
-        if (cell.used) {
-            continue;
-        }
-        cell.use();
-        if (move === maxMoves) {
-            result.totalRounds++;
-            if (field.linesCompleted >= 4) {
-                result.fourLineWins++;
-            }
-            else if (field.linesCompleted === 3) {
-                result.threeLineWins++;
-            }
-            else if (field.linesCompleted === 2) {
-                result.twoLineWins++;
-            }
-            else if (field.linesCompleted === 1) {
-                result.oneLineWins++;
-            }
-            else {
-                console.log('Worse than 1.');
-                field.print();
-            }
-            if (result.totalRounds % 100000 === 0) {
-                workerpool.workerEmit(result);
-            }
-        }
-        else {
-            benchmarkWorker(strategyIndex, partitionIndex, maxMoves, field, move + 1, result);
-        }
-        cell.used = false;
-    }
-    nextCell.used = false;
-    if (move === 2) {
-        return result;
-    }
-}
+
 var field = new Field();
 var LABEL_PREFIX = 'l';
 var CHECKBOX_PREFIX = 'cb';
@@ -569,6 +374,7 @@ var lastMarkedId = null;
 var heatmapActive = false;
 var lastUsedPatterns = 'None';
 var lastUsedHeatmap = null;
+
 function initWebsite() {
     var html = "\n    <main class=\"app\">\n        <div class=\"panel\">\n            <div class=\"bingo-board-container\">\n                <div class=\"bingo-headers\">\n                    <div class=\"header-letter\">B</div>\n                    <div class=\"header-letter\">I</div>\n                    <div class=\"header-letter\">N</div>\n                    <div class=\"header-letter\">G</div>\n                    <div class=\"header-letter\">O</div>\n                </div>\n                <div class=\"bingo-grid\">\n    ";
     
@@ -584,6 +390,7 @@ function initWebsite() {
     document.body.innerHTML = html;
     reset();
 }
+
 function toggleHeatmap(checkbox) {
     heatmapActive = checkbox.checked;
     if (heatmapActive) {
@@ -593,6 +400,7 @@ function toggleHeatmap(checkbox) {
         clearHeatmap();
     }
 }
+
 function clearHeatmap() {
     for (var _i = 0, _a = field.cells; _i < _a.length; _i++) {
         var cell = _a[_i];
@@ -602,6 +410,7 @@ function clearHeatmap() {
         setHeatmapInfo(cell.id, null);
     }
 }
+
 function drawHeatmap() {
     var heatmap = lastUsedHeatmap;
     if (!heatmap) {
@@ -623,11 +432,13 @@ function drawHeatmap() {
         }
     }
 }
+
 function reset() {
     field.reset();
     for (var _i = 0, _a = field.cells; _i < _a.length; _i++) {
         var cell = _a[_i];
-        document.getElementById(CHECKBOX_PREFIX + cell.id).checked = false;
+        var cb = document.getElementById(CHECKBOX_PREFIX + cell.id);
+        if (cb) cb.checked = false;
         setCheckboxState(cell.id, CHECKBOX_STATES.NONE);
     }
     markNextMove();
@@ -637,9 +448,9 @@ function reset() {
     displayMoveNumber(1);
     displayMessage('เลือก 13');
 }
+
 function checkboxClicked(checkbox, id) {
     if (!checkbox.checked) {
-        // checkboxes can only be reset by resetting the whole round
         checkbox.checked = true;
         return;
     }
@@ -677,6 +488,7 @@ function checkboxClicked(checkbox, id) {
     }
     displayMoveNumber(field.usedCellCount + 1);
 }
+
 function markNextMove() {
     var nextId = getHottestCell(field, 16 - field.usedCellCount).id;
     setCheckboxState(nextId, CHECKBOX_STATES.NEXT);
@@ -685,27 +497,34 @@ function markNextMove() {
         drawHeatmap();
     }
 }
+
 function setCheckboxColor(id, color) {
-    document.getElementById(LABEL_PREFIX + id).style.backgroundColor = color;
+    var elem = document.getElementById(LABEL_PREFIX + id);
+    if (elem) elem.style.backgroundColor = color;
 }
+
 function setCheckboxState(id, state) {
     var checkbox = document.getElementById(LABEL_PREFIX + id);
-    // remove heatmap color if exists
+    if (!checkbox) return;
     if (checkbox.getAttribute('data-state') === CHECKBOX_STATES.HEATMAP) {
         setCheckboxColor(id, '');
     }
     checkbox.setAttribute('data-state', state);
 }
+
 function setHeatmapInfo(id, heat) {
-    var _a;
-    document.getElementById(SPAN_PREFIX + id).innerText = (_a = heat === null || heat === void 0 ? void 0 : heat.toString()) !== null && _a !== void 0 ? _a : '';
+    var elem = document.getElementById(SPAN_PREFIX + id);
+    if (elem) elem.innerText = heat != null ? heat.toString() : '';
 }
+
 function displayMoveNumber(moveNumber) {
-    document.getElementById('move').innerText = moveNumber + ' / 16';
+    var elem = document.getElementById('move');
+    if (elem) elem.innerText = moveNumber + ' / 16';
 }
+
 function displayMessage(text) {
-    document.getElementById('message').innerText = text;
+    var elem = document.getElementById('message');
+    if (elem) elem.innerText = text;
 }
-// randomBenchmark();
-// fullBenchmark();
-window.onload = initWebsite;
+
+window.addEventListener('DOMContentLoaded', initWebsite);
