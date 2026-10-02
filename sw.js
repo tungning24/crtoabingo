@@ -1,6 +1,6 @@
-const CACHE_NAME = 'crtoabingo-v1';
+const CACHE_NAME = 'crtoabingo-v2';
 
-const FILES = [
+const ASSETS = [
   './',
   './index.html',
   './styles.css',
@@ -12,21 +12,20 @@ const FILES = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(FILES))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => {
+      // ใช้ addAll แบบไม่ให้พังถ้าบางไฟล์หาไม่เจอชั่วคราว
+      return Promise.allSettled(
+        ASSETS.map(url => cache.add(url))
+      );
+    }).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then(keys => {
       return Promise.all(
-        cacheNames.map(cache => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
-        })
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       );
     }).then(() => self.clients.claim())
   );
@@ -34,9 +33,14 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then(cachedResponse => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).catch(() => {
+        // Fallback กรณีออฟไลน์และหาไฟล์ไม่เจอ
+        return caches.match('./index.html');
+      });
+    })
   );
 });
