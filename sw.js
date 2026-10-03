@@ -1,4 +1,4 @@
-const CACHE_NAME = 'crtoabingo-v5';
+const CACHE_NAME = 'crtoabingo-v6';
 
 const ASSETS = [
   './',
